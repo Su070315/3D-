@@ -1,9 +1,9 @@
 ---
 name: "text-to-3d-html"
-version: "1.2.0"
+version: "1.3.0"
 display_name: "文字生成3D模型(HTML)"
 display_name_en: "Text-to-3D HTML Model Generator"
-description: "根据用户的一段文字描述，生成一个可双击在浏览器打开的 3D 模型(程序化 Three.js 单文件 HTML)。支持写实电影感场景(天空shader/水面反射/光带/后处理调色)、环绕查看、楼层切换、日夜连续调节、可编辑(添加/移动/删除物体)、导出 GLB 进 Blender。适用于生成一个3D模型、做个房子/建筑/场景/海岛/帮我建个别墅/庭院/街区等请求。"
+description: "根据用户的一段文字描述，生成一个可双击在浏览器打开的 3D 模型(程序化 Three.js 单文件 HTML)。支持写实电影感场景(天空shader/水面反射/光带/后处理调色)、太空站/轨道场景(星空+行星+部件拆解拼装)、环绕查看、楼层切换、日夜连续调节、可编辑(添加/移动/删除物体)、导出 GLB 进 Blender。适用于生成一个3D模型、做个房子/建筑/场景/海岛/太空站/帮我建个别墅/庭院/街区等请求。"
 description_zh: "根据用户的一段文字描述，生成一个可双击在浏览器打开的 3D 模型(程序化 Three.js 单文件 HTML)。支持写实电影感场景(天空shader/水面反射/光带/后处理调色)、环绕查看、楼层切换、日夜连续调节、可编辑(添加/移动/删除物体)、导出 GLB 进 Blender。适用于生成一个3D模型、做个房子/建筑/场景/海岛/帮我建个别墅/庭院/街区等请求。"
 description_en: "Generate a 3D model openable in the browser by double-clicking, from a text description (procedural Three.js single-file HTML). Supports cinematic realism (sky shader, planar water reflection, light path, post-process grading), orbit view, floor switching, continuous time-of-day, editing, and GLB export to Blender."
 ---
@@ -27,6 +27,7 @@ description_en: "Generate a 3D model openable in the browser by double-clicking,
 | 室内住宅 / 别墅（楼层、家具、俯视看室内） | templates/manor_app.js | references/design-guide.md |
 | 浮空岛 / 城堡（内部房间、可点开门、瀑布池塘、视角导览） | templates/sky_island_v10_app.js | references/design-guide.md 第 9 节 |
 | **自然场景 / 岛 / 海岸 / 写实氛围**（原创：北境阴天孤岛） | **templates/nordic_isle_app.js** | **references/realism-guide.md** |
+| **太空 / 轨道站 / 科幻载具**（要星空、行星、部件拆解拼装） | **templates/orbital_station_app.js** | **references/design-guide.md 第 11 节** |
 | 用户要"真实、有氛围、像实拍短剧画面" | 任一骨架 + 写实四件套 | references/realism-guide.md |
 
 **写实四件套**（缺一不可，详见 realism-guide.md）：天空球 shader、水面平面反射 + 光带、ACES 后处理（bloom/暗角/颗粒）、颜色统一转线性。
@@ -63,6 +64,21 @@ description_en: "Generate a 3D model openable in the browser by double-clicking,
 - **UI**（时间滑块 + 4 个时段按钮 + 5 个机位 + 自动旋转 + 导出 GLB）
 - 调试口：`window.__isle = {scene, camera, controls, applyTime, tweenCam}`
 
+## 太空场景骨架（orbital_station_app.js，天穹轨道站）
+
+成套可复用的「轨道场景 + 可拆装结构」管线：
+
+- **星空**：23000 点 + 径向渐变贴图（AdditiveBlending），其中约 38% 沿倾斜平面聚集做银河带
+- **行星**：SphereGeometry 放在脚下并 `rotation.x≈-1.0`（不倾斜只会看到极冠白冰盖）；贴图走 **GPU 烘焙**（bakeRT：正交相机全屏 quad → WebGLRenderTarget，60ms；CPU 逐像素 fbm 要 5 秒）
+- **行星光照**：自制 shader —— ndl 昼夜分界、海洋高光 pow(dot(n,H),240)、夜面城市灯、边缘菲涅尔；外部再加一层半径 ×1.0055 的 additive BackSide 大气壳
+- **地球反照光**：一盏从下方打的冷蓝 DirectionalLight（0.7~0.9），这是"ISS 照片感"的关键
+- **桁架**：4 纵梁 + 每 3.6m 一个 bay 的 X 斜撑（strut(p1,p2,r) 用四元数对齐两点）；桁架是剪影主体，别用一根方管糊弄
+- **太阳翼**：两片毯（顶点正弦起伏）+ 桅杆 + 边框 + 张紧索 + 独立暗色背板；正面要哑光（rough 0.85+）
+- **舱段**：圆柱 + Torus 加强环 + 端环 + 舱门/舷窗 + 暗色隔热毯拼块 + 金箔条（打破整片白）
+- **拆解拼装**：每个可拆件一个 Group，`position = dock + off*ease(t)` + 引导线；raycast 沿 parent 链找 userData.part；悬停用角括号 LineSegments（depthTest:false）不用改材质
+- **展开取景**：包围球拟合 `dist = R/sin(fov/2) × 0.62`
+- 调试口：`window.STATION = {parts, camera, controls, setView, toggleAll}`
+
 ## 必守的坑
 
 - 几何体先 geometry.rotateY 烘焙旋转、再 scale（否则菱形屋面）
@@ -72,6 +88,10 @@ description_en: "Generate a 3D model openable in the browser by double-clicking,
 - 组装用 shell.html（含编辑栏），app.js 里可改 document.title 和 #modelTitle
 - 楼层数不是 4 时隐藏多余楼层按钮
 - Blender 渲染发灰：blender_import.py 已设 view_transform=Standard + 世界背景强度 0.25
+- **GLSL 里 pow(负数, 2.0) 未定义 → NaN → 整层渲染成白**（云层/行星会整片糊掉）：角度类平方一律 `float c=cos(x); c*c`
+- **白件过曝会洗掉全部材质细节**：白色舱体在 sun 2.7 下直接纯白，主光控制在 1.9~2.2
+- **相机缓动别按 dt 累加**：低帧率下会"永远飞不到"，用 performance.now() 计时
+- 测帧率必须 headless:false：headless Chromium 走 SwiftShader 只有 3fps（同机有头 49fps）
 
 ## 写实场景专属坑（血泪）
 

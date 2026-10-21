@@ -114,3 +114,33 @@ bed/wardrobe/nightstand/sofa/chair/desk/rug/pendant 等，都接受楼层 Y 参�
 - M(color, map, opts) 三参签名，第二参必须是纹理或 null（见第 8 节材质坑）
 - 双扇门开合方向：几何 translate(w/2,0,0) 铰链在组原点，左扇 openAng 取负右扇取正；门上铁箍/门钉作为门的子节点随动
 - 水井交互：吊桶+绳+辘轳存 userData，WELL 动画期间 bucket 上升/rope.scale.y 缩短/辘轳 rotation.x 累加，结束复位
+
+
+## 11. 太空 / 轨道站场景配方（orbital_station_app.js）
+
+### 场景骨架
+- 无天空球：黑色背景 + 23000 个星点（Points + 径向渐变贴图，AdditiveBlending）+ 银河带（同一批点里 38% 沿倾斜平面聚集）
+- 地球：SphereGeometry(R=900) 放在脚下 y=-(R+168)，**倾斜 rotation.x≈-1.0** 让正下方是温带而不是极冠，否则往下看永远是白色冰盖
+- 地球贴图用 GPU 烘焙（bakeRT：正交相机 + 全屏 quad 渲到 WebGLRenderTarget），CPU 逐像素 fbm 要 5 秒，GPU 只要 60 ms
+- 地球光照自己算：ndl → day/night，海洋高光 pow(dot(n,H),240)，夜面城市灯，边缘菲涅尔
+- 大气壳半径只放大 1.0055，additive + BackSide，强度压到 0.5 以下；**给大了 bloom 会把整颗行星糊成一片白**
+- 地球反弹光：一盏从下方打的冷蓝 DirectionalLight（0.7~0.9），这是"ISS 照片感"的关键
+
+### 空间站结构
+- 桁架：4 根纵梁 + 每 3.6 m 一个 bay 的 X 斜撑（strut(p1,p2,r) 用四元数对齐两点），桁架是剪影主体，别用一根方管糊弄
+- 太阳翼：两组毯（平面 3.7×30，顶点做正弦起伏）+ 中央桅杆 + 边框 + 张紧索；**背面单独一片暗面**，正面用哑光（rough 0.85+）否则掠射角菲涅尔会把整片照成白色
+- 舱体：圆柱 + 加强环(Torus) + 端环 + 舱门/舷窗 + 暗色隔热毯拼块（打破整片白）+ 金色 MLI 条
+- 散热板做成"单片薄板 + 横向肋"，不要三块厚板并排（会读成一个白方块）
+- 机械臂：两段圆柱 + 肘关节 + 末端执行器，挂在中央桁架上做剪影
+
+### 拆解 / 拼装交互
+- 每个可拆件是一个独立 Group，位置=dock；拆解时 `position = dock + off * ease(t)`，同时画一条从 dock 到当前位置的引导线
+- 拾取：raycast 命中后沿 parent 链找 userData.part
+- 展开全部时用**包围球**拟合相机（dist = R/sin(fov/2) × 0.62），否则近角会把镜头顶到很远
+- 悬停用"角括号线框"（LineSegments 12 段，depthTest:false）比改材质安全，不会串到别的部件
+
+### 踩坑
+- **GLSL 里 pow(负数, 2.0) 未定义 → NaN → 整层渲染成白**：角度类平方一律写 `float c = cos(x); c*c`
+- 过曝会洗掉所有材质细节：白色舱体在 sun 2.7 下直接纯白，主光降到 1.9~2.2
+- 相机缓动按 dt 累加会在低帧率下变成"永远飞不到"，改用 performance.now()
+- headless Chromium 走 SwiftShader 只有 3 fps，测帧率必须 headless:false（同一台机器实测 49 fps）

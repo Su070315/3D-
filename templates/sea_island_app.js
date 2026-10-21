@@ -23,7 +23,7 @@
   if (document.getElementById('editbar')) document.getElementById('editbar').style.display = 'none';
 
   var scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x2a2438, 340, 2600);
+  scene.fog = new THREE.Fog(0x2a2438, 480, 4300);
 
   var camera = new THREE.PerspectiveCamera(42, W / H, 0.5, 5000);
   camera.position.set(14, 14, 122);
@@ -346,7 +346,7 @@
   var pos = terGeo.attributes.position;
   var colors = new Float32Array(pos.count * 3);
   var cSandDry = C('#e0c9a0'), cSandWet = C('#9c8a6d');
-  var cGrass = C('#5f7038'), cGrass2 = C('#7d8c46');
+  var cGrass = C('#5f7038'), cGrass2 = C('#7d8c46'), cDry = C('#9c975a'), cSoil = C('#6b5334');
   var cRock = C('#6a655c'), cUnder = C('#a89674');
   var tmpC = new THREE.Color();
   for (var i = 0; i < pos.count; i++) {
@@ -359,6 +359,10 @@
     else if (y < 3.2) tmpC.copy(cSandDry).lerp(cGrass, THREE.MathUtils.smoothstep(y, 2.6, 4.4));
     else tmpC.copy(cGrass).lerp(cGrass2, n);
     tmpC.lerp(cRock, THREE.MathUtils.smoothstep(n, 0.72, 0.95) * 0.5 * (y > 2 ? 1 : 0));
+    if (y > 2.2) {
+      var dry = fbm(x * 0.034 + 21.0, z * 0.034 + 5.0);
+      tmpC.lerp(cDry, THREE.MathUtils.smoothstep(dry, 0.50, 0.80) * 0.55);
+    }
     colors[i * 3] = tmpC.r; colors[i * 3 + 1] = tmpC.g; colors[i * 3 + 2] = tmpC.b;
   }
   terGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -384,7 +388,7 @@
     uDeep: { value: C('#121528') },
     uShallow: { value: C('#2b4356') },
     uFog: { value: C('#4a3444') },
-    uFogDen: { value: 0.00075 },
+    uFogDen: { value: 0.00055 },
     uRefl: { value: reflRT.texture },
     uTexMat: { value: texMat },
     uNight: { value: 0.3 },
@@ -517,7 +521,7 @@
     ].join('\n')
   });
 
-  var waterGeo = new THREE.PlaneGeometry(7000, 7000, 220, 220);
+  var waterGeo = new THREE.PlaneGeometry(16000, 16000, 240, 240);
   waterGeo.rotateX(-Math.PI / 2);
   var water = new THREE.Mesh(waterGeo, waterMat);
   water.position.y = 0;
@@ -664,9 +668,16 @@
   }
 
   var PALM_SPOTS = [
-    [6, 20, 15.5], [-16, 6, 13.0], [-27, -12, 12.0], [18, -22, 11.2], [-4, -34, 10.4],
-    [30, 12, 9.6], [-34, 10, 9.0], [10, 34, 8.6], [38, -6, 8.0], [-24, 26, 8.2],
-    [-44, -4, 6.6], [26, 30, 5.8]
+    // 木屋旁主簇
+    [6, 20, 15.5], [1.5, 24.5, 13.4], [11, 24, 12.2], [-3, 15, 12.8], [9, 13, 11.0],
+    // 西侧椰林
+    [-16, 6, 13.0], [-22, 2, 12.2], [-27, -12, 12.0], [-19, -16, 10.6],
+    // 北侧沙丘后
+    [18, -22, 11.2], [24, -26, 9.8], [-4, -34, 10.4], [-12, -30, 9.2],
+    // 东西两端
+    [30, 12, 9.6], [37, 8, 8.4], [38, -6, 8.0], [-34, 10, 9.0], [-40, 4, 7.8],
+    // 沙滩边缘零散
+    [10, 34, 8.6], [-24, 26, 8.2], [26, 30, 5.8], [-44, -4, 6.6], [33, 22, 6.2]
   ];
   PALM_SPOTS.forEach(function (s, i) {
     var x = s[0], z = s[1], h = s[2];
@@ -753,6 +764,7 @@
     thatch: new THREE.MeshStandardMaterial({ color: C('#a08a53'), roughness: 1.0, flatShading: true }),
     window: new THREE.MeshStandardMaterial({ color: C('#2a2018'), roughness: 0.35, emissive: C('#ffb45e'), emissiveIntensity: 0.0 })
   };
+  var frameM = new THREE.MeshStandardMaterial({ color: C('#4c3823'), roughness: 0.9 });
 
   var hut = new THREE.Group();
   (function buildHut() {
@@ -791,7 +803,6 @@
     var doorZ = (D2 - 0.5) / 2 + 0.02;
     var door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.08), hutMats.woodDark);
     door.position.set(-0.9, DECK + doorH / 2, doorZ); hut.add(door);
-    var frameM = new THREE.MeshStandardMaterial({ color: C('#4c3823'), roughness: 0.9 });
     [[-1, 0], [1, 0]].forEach(function (s) {
       var jamb = new THREE.Mesh(new THREE.BoxGeometry(0.1, doorH + 0.1, 0.1), frameM);
       jamb.position.set(-0.9 + s[0] * (doorW / 2 + 0.05), DECK + doorH / 2, doorZ + 0.03);
@@ -915,36 +926,437 @@
 
   /* ---------------- 远景岛 ---------------- */
   // 远景岛：多峰山脊（不是单个锥体），靠雾融进地平线
-  var distantMat = new THREE.MeshStandardMaterial({ color: C('#2a3350'), roughness: 1, flatShading: true });
-  function distantIsland(x, z, w, h, seedOff, rot) {
-    var g = new THREE.Group();
-    var peaks = 5 + Math.floor(rnd() * 3);
-    for (var k = 0; k < peaks; k++) {
-      var rr0 = w * rr(0.3, 0.62);
-      var hh = h * rr(0.45, 1.0);
-      var cg = new THREE.ConeGeometry(rr0, hh, 18, 5);
-      var pa = cg.attributes.position;
-      for (var i = 0; i < pa.count; i++) {
-        var v = new THREE.Vector3(pa.getX(i), pa.getY(i), pa.getZ(i));
-        var nn = 0.72 + fbm(v.x * 0.02 + seedOff + k, v.z * 0.02 + k * 2.0) * 0.6;
-        v.x *= nn; v.z *= nn;
-        v.y += fbm(v.x * 0.03 + k, v.z * 0.03) * hh * 0.12;
-        pa.setXYZ(i, v.x, v.y, v.z);
-      }
-      cg.computeVertexNormals();
-      var m = new THREE.Mesh(cg, distantMat);
-      m.position.set(rr(-w * 0.75, w * 0.75), hh * 0.5 - hh * 0.58, rr(-w * 0.25, w * 0.25));
-      m.rotation.y = rr(0, 6.28);
-      m.scale.set(1, rr(0.7, 1.15), 1);
+  /* ---------------- 岛上细节：植被层次 + 生活痕迹 ---------------- */
+  var propRoot = new THREE.Group();
+  islandRoot.add(propRoot);
+  var FIRE = null, BIRDS = [], SMOKE = [];
+
+  var bushMats = [
+    new THREE.MeshStandardMaterial({ color: C('#4a6430'), roughness: 0.96, flatShading: true }),
+    new THREE.MeshStandardMaterial({ color: C('#5f7637'), roughness: 0.96, flatShading: true }),
+    new THREE.MeshStandardMaterial({ color: C('#3d5527'), roughness: 0.96, flatShading: true })
+  ];
+  var fernMat = new THREE.MeshStandardMaterial({
+    map: frondTex, alphaMap: frondTex, alphaTest: 0.45, side: THREE.DoubleSide,
+    color: C('#40592a'), roughness: 0.9
+  });
+
+  function makeBush(x, z, s) {
+    var g = new THREE.Group(), lumps = 7 + Math.floor(rnd() * 5);
+    for (var i = 0; i < lumps; i++) {
+      var r = rr(0.32, 0.72) * s;
+      var m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), bushMats[i % 3]);
+      var a = rr(0, 6.28), rad = rr(0, 0.8) * s;
+      m.position.set(Math.cos(a) * rad, rr(0.1, 0.55) * s, Math.sin(a) * rad);
+      m.scale.y = rr(0.55, 0.95);
+      m.rotation.set(rr(0, 3), rr(0, 3), rr(0, 3));
+      m.castShadow = true; m.receiveShadow = true;
       g.add(m);
     }
-    g.position.set(x, 0, z);
-    g.rotation.y = rot || 0;
-    scene.add(g);
+    g.position.set(x, heightAt(x, z) - 0.12, z);
+    propRoot.add(g);
   }
-  distantIsland(-520, -1450, 260, 105, 3.1, 0.1);
-  distantIsland(340, -1620, 330, 130, 8.4, -0.06);
-  distantIsland(1320, -1150, 300, 105, 12.2, -0.2);
+
+  function makeFern(x, z, s) {
+    var g = new THREE.Group(), n = 5 + Math.floor(rnd() * 3);
+    for (var i = 0; i < n; i++) {
+      var m = new THREE.Mesh(FROND_GEO, fernMat);
+      var fg = new THREE.Group();
+      fg.rotation.y = (i / n) * 6.283 + rr(-0.25, 0.25);
+      fg.rotation.z = rr(0.75, 1.15);
+      m.scale.setScalar(s * rr(0.75, 1.05));
+      m.castShadow = true;
+      fg.add(m); g.add(fg);
+    }
+    g.position.set(x, heightAt(x, z) - 0.05, z);
+    propRoot.add(g);
+  }
+
+  var driftMat = new THREE.MeshStandardMaterial({ color: C('#9d8d78'), roughness: 0.95, flatShading: true });
+  function makeDriftwood(x, z, len, ry) {
+    var g = new THREE.Group();
+    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.3, len, 7), driftMat);
+    trunk.rotation.z = Math.PI / 2;
+    trunk.castShadow = true; g.add(trunk);
+    for (var i = 0; i < 3; i++) {
+      var br = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, rr(0.9, 1.8), 5), driftMat);
+      br.position.set(rr(-len * 0.35, len * 0.35), rr(-0.1, 0.25), rr(-0.2, 0.2));
+      br.rotation.set(rr(-0.5, 0.5), rr(0, 3), rr(0.7, 1.3));
+      br.castShadow = true; g.add(br);
+    }
+    g.position.set(x, heightAt(x, z) + 0.18, z);
+    g.rotation.y = ry;
+    propRoot.add(g);
+  }
+
+  function makeCrate(x, z, s, ry) {
+    var g = new THREE.Group();
+    var box = new THREE.Mesh(new THREE.BoxGeometry(s, s * 0.85, s), hutMats.wood);
+    box.castShadow = true; box.receiveShadow = true; g.add(box);
+    [[0, 0, s / 2 + 0.01], [0, 0, -s / 2 - 0.01]].forEach(function (o) {
+      var band = new THREE.Mesh(new THREE.BoxGeometry(s * 1.02, 0.07, 0.03), hutMats.woodDark);
+      band.position.set(o[0], s * 0.22, o[2]); g.add(band);
+    });
+    g.position.set(x, heightAt(x, z) + s * 0.42, z);
+    g.rotation.y = ry;
+    propRoot.add(g);
+  }
+
+  function makeBarrel(x, z) {
+    var g = new THREE.Group();
+    var b = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.46, 1.0, 14), hutMats.woodDark);
+    b.castShadow = true; b.receiveShadow = true; g.add(b);
+    [0.32, -0.32].forEach(function (yy) {
+      var hoop = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.028, 6, 18), frameM);
+      hoop.rotation.x = Math.PI / 2; hoop.position.y = yy; g.add(hoop);
+    });
+    g.position.set(x, heightAt(x, z) + 0.5, z);
+    propRoot.add(g);
+  }
+
+  // 石径：从沙滩通到木屋
+  function stonePath(p0, p1, n) {
+    var stoneMat = new THREE.MeshStandardMaterial({ color: C('#8d8578'), roughness: 0.95, flatShading: true });
+    for (var i = 0; i < n; i++) {
+      var t = i / (n - 1);
+      var x = p0[0] + (p1[0] - p0[0]) * t + Math.sin(i * 2.1) * 1.1;
+      var z = p0[1] + (p1[1] - p0[1]) * t + Math.cos(i * 1.7) * 1.1;
+      var y = heightAt(x, z);
+      if (y < 0.2) continue;
+      var st = new THREE.Mesh(new THREE.CylinderGeometry(rr(0.45, 0.7), rr(0.5, 0.75), 0.16, 7), stoneMat);
+      st.position.set(x, y + 0.02, z);
+      st.scale.z = rr(0.7, 1.1);
+      st.rotation.y = rr(0, 3);
+      st.receiveShadow = true; st.castShadow = true;
+      propRoot.add(st);
+    }
+  }
+
+  // 篝火：石圈 + 交叉木柴 + 火光 + 烟
+  function makeCampfire(x, z) {
+    var g = new THREE.Group();
+    var y = heightAt(x, z);
+    var stoneMat = new THREE.MeshStandardMaterial({ color: C('#726a5e'), roughness: 0.95, flatShading: true });
+    for (var i = 0; i < 9; i++) {
+      var a = (i / 9) * 6.283;
+      var st = new THREE.Mesh(new THREE.DodecahedronGeometry(rr(0.16, 0.3), 0), stoneMat);
+      st.position.set(Math.cos(a) * 0.95, 0.08, Math.sin(a) * 0.95);
+      st.rotation.set(rr(0, 3), rr(0, 3), rr(0, 3));
+      st.castShadow = true; st.receiveShadow = true;
+      g.add(st);
+    }
+    for (var k = 0; k < 4; k++) {
+      var log = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 1.5, 6), hutMats.woodDark);
+      log.position.y = 0.22;
+      log.rotation.set(Math.PI / 2 - 0.35, k * 0.8, 0);
+      log.castShadow = true; g.add(log);
+    }
+    // 火焰（交叉 additive 面片）
+    var flameMat = new THREE.SpriteMaterial({ map: glowTex, color: 0xff8a3a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    var flame = new THREE.Sprite(flameMat);
+    flame.scale.set(1.5, 2.1, 1);
+    flame.position.y = 0.95;
+    g.add(flame);
+    var light = new THREE.PointLight(0xff7a2e, 0.0, 22, 2);
+    light.position.set(0, 1.2, 0);
+    g.add(light);
+    // 烟
+    for (var s = 0; s < 4; s++) {
+      var sm = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0x8a8478, transparent: true, opacity: 0, depthWrite: false }));
+      sm.scale.set(1.4, 1.4, 1);
+      sm.position.set(rr(-0.2, 0.2), 1.4, rr(-0.2, 0.2));
+      g.add(sm);
+      SMOKE.push({ s: sm, t: s / 4 });
+    }
+    g.position.set(x, y - 0.05, z);
+    propRoot.add(g);
+    FIRE = { g: g, light: light, flame: flame };
+  }
+
+  // 吊床（两根木桩 + 织物）
+  function makeHammock(x, z, ry) {
+    var g = new THREE.Group();
+    var hMat = new THREE.MeshStandardMaterial({ color: C('#c8b78e'), roughness: 0.95, side: THREE.DoubleSide });
+    var geo = new THREE.PlaneGeometry(1.1, 3.2, 6, 10);
+    var pa = geo.attributes.position;
+    for (var i = 0; i < pa.count; i++) {
+      var px = pa.getX(i), py = pa.getY(i);
+      var bend = Math.cos((py / 1.6) * 1.57);
+      pa.setZ(i, -bend * 0.55);
+    }
+    geo.computeVertexNormals();
+    var ham = new THREE.Mesh(geo, hMat);
+    ham.rotation.x = -Math.PI / 2;
+    ham.position.y = 1.35;
+    ham.castShadow = true;
+    g.add(ham);
+    [-1, 1].forEach(function (s) {
+      var post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 2.2, 8), hutMats.woodDark);
+      post.position.set(0, 1.1, s * 1.85);
+      post.castShadow = true; g.add(post);
+      var rope = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.0, 4), driftMat);
+      rope.position.set(0, 1.75, s * 1.4);
+      rope.rotation.x = s * 0.55; g.add(rope);
+    });
+    g.position.set(x, heightAt(x, z), z);
+    g.rotation.y = ry;
+    propRoot.add(g);
+  }
+
+  // 晒鱼架
+  function makeRack(x, z, ry) {
+    var g = new THREE.Group();
+    [-1, 1].forEach(function (s) {
+      var p = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.9, 6), hutMats.woodDark);
+      p.position.set(s * 1.1, 0.95, 0); p.castShadow = true; g.add(p);
+    });
+    var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 6), hutMats.woodDark);
+    bar.rotation.z = Math.PI / 2; bar.position.y = 1.75; g.add(bar);
+    for (var i = 0; i < 4; i++) {
+      var fish = new THREE.Mesh(new THREE.SphereGeometry(0.16, 6, 5),
+        new THREE.MeshStandardMaterial({ color: C('#b9b0a0'), roughness: 0.7 }));
+      fish.scale.set(2.0, 0.55, 0.5);
+      fish.position.set(-0.85 + i * 0.56, 1.55, 0);
+      fish.castShadow = true; g.add(fish);
+    }
+    g.position.set(x, heightAt(x, z), z);
+    g.rotation.y = ry;
+    propRoot.add(g);
+  }
+
+  // 飞鸟（V 形剪影，绕岛盘旋）
+  function makeBird(r, y, a0, sp, sc) {
+    var g = new THREE.Group();
+    var mat = new THREE.MeshBasicMaterial({ color: C('#1a1b22') });
+    [-1, 1].forEach(function (s) {
+      var w = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.16), mat);
+      w.position.x = s * 0.45;
+      w.rotation.z = s * 0.28;
+      g.add(w);
+    });
+    g.scale.setScalar(sc);
+    scene.add(g);
+    BIRDS.push({ g: g, r: r, y: y, a: a0, sp: sp });
+  }
+
+  // —— 布置 ——
+  stonePath([6, 46], [12.6, 22], 16);
+  makeCampfire(34, 26);
+  makeCrate(20.6, 16.4, 1.0, 0.4);
+  makeCrate(19.4, 17.6, 0.8, -0.3);
+  makeBarrel(22.4, 17.2);
+  makeRack(9.6, 20.6, -0.7);
+  makeHammock(-6, 28, 0.9);
+  makeDriftwood(-22, 44, 3.4, 0.6);
+  makeDriftwood(30, 41, 2.6, -0.9);
+  makeDriftwood(-34, 30, 2.2, 1.7);
+  makeDriftwood(44, 18, 1.9, 0.2);
+
+  [[-14, 24, 2.3], [4, 30, 1.9], [26, 6, 2.1], [-30, -6, 2.0], [-2, -18, 2.4],
+   [16, -10, 1.7], [-20, 12, 1.6], [36, -14, 1.9], [8, 8, 1.4], [-40, 14, 1.7],
+   [24, 32, 2.0], [-10, -34, 1.9], [40, 4, 1.4], [2, 18, 1.3], [-26, 34, 1.9],
+   [12, 4, 1.6], [-6, -4, 1.5], [20, 14, 1.4], [-13, -12, 1.7], [30, -2, 1.5],
+   [6, -26, 1.6], [-22, -24, 1.5], [18, 34, 1.4], [-18, 36, 1.3], [34, 30, 1.2],
+   [-4, 40, 1.4], [44, 10, 1.3], [-38, -20, 1.3]].forEach(function (b) {
+    makeBush(b[0], b[1], b[2]);
+  });
+
+  // 内陆巨石
+  [[10, -2, 2.3], [-16, 20, 1.9], [26, 20, 1.7]].forEach(function (r) {
+    var m = makeRock(r[2]);
+    m.position.set(r[0], heightAt(r[0], r[1]) + r[2] * 0.18, r[1]);
+    m.rotation.set(rr(-0.2, 0.2), rr(0, 6.28), rr(-0.2, 0.2));
+    propRoot.add(m);
+  });
+
+  // 散落的枯棕榈叶
+  (function deadFronds() {
+    for (var i = 0; i < 22; i++) {
+      var a = rr(0, 6.28), r = rr(6, 42);
+      var x = Math.cos(a) * r, z = Math.sin(a) * r, y = heightAt(x, z);
+      if (y < 1.6) continue;
+      var m = new THREE.Mesh(FROND_GEO, deadMat);
+      m.scale.setScalar(rr(0.35, 0.55));
+      m.rotation.set(-Math.PI / 2 + rr(-0.15, 0.15), rr(0, 6.28), 0);
+      m.position.set(x, y + 0.08, z);
+      m.receiveShadow = true;
+      propRoot.add(m);
+    }
+  })();
+
+  // 草地碎石
+  (function pebbles() {
+    var geo = new THREE.IcosahedronGeometry(1, 0);
+    var im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: C('#8a8274'), roughness: 0.95, flatShading: true }), 90);
+    var mm = new THREE.Matrix4(), qq = new THREE.Quaternion(), vv = new THREE.Vector3(), ss = new THREE.Vector3();
+    var n = 0, guard2 = 0;
+    while (n < 90 && guard2 < 900) {
+      guard2++;
+      var a2 = rr(0, 6.28), r2 = rr(4, 56);
+      var x2 = Math.cos(a2) * r2, z2 = Math.sin(a2) * r2, y2 = heightAt(x2, z2);
+      if (y2 < 0.4) continue;
+      var s2 = rr(0.10, 0.32);
+      qq.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rr(0, 6.28));
+      vv.set(x2, y2 + s2 * 0.35, z2); ss.set(s2, s2 * rr(0.5, 0.8), s2);
+      mm.compose(vv, qq, ss);
+      im.setMatrixAt(n++, mm);
+    }
+    im.count = n;
+    im.castShadow = true; im.receiveShadow = true;
+    propRoot.add(im);
+  })();
+
+  // 背风侧的矮岩脊（打破草坡的单调）
+  (function ridgeInland() {
+    for (var i = 0; i < 7; i++) {
+      var a = 1.15 + i * 0.16;
+      var rx = Math.cos(a) * (30 + i * 1.6), rz = Math.sin(a) * (30 + i * 1.6);
+      var s = rr(1.1, 1.9);
+      var m = makeRock(s);
+      m.position.set(rx, heightAt(rx, rz) + s * 0.12, rz);
+      m.rotation.set(rr(-0.2, 0.2), rr(0, 6.28), rr(-0.2, 0.2));
+      m.scale.y = 0.8;
+      propRoot.add(m);
+    }
+  })();
+
+  // 菜圃（深色土 + 成行的小苗）
+  (function garden() {
+    var gx = 22.5, gz = 8.5, gy = heightAt(gx, gz);
+    var soil = new THREE.Mesh(new THREE.CylinderGeometry(3.0, 3.1, 0.28, 12), new THREE.MeshStandardMaterial({ color: cSoil, roughness: 1 }));
+    soil.scale.z = 0.62;
+    soil.position.set(gx, gy + 0.02, gz);
+    soil.receiveShadow = true;
+    propRoot.add(soil);
+    for (var r = 0; r < 4; r++) {
+      for (var c = 0; c < 6; c++) {
+        var px = gx - 2.1 + c * 0.85, pz = gz - 1.0 + r * 0.66;
+        var leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(rr(0.16, 0.24), 1), bushMats[1]);
+        leaf.scale.y = 0.8;
+        leaf.position.set(px, heightAt(px, pz) + 0.22, pz);
+        leaf.castShadow = true;
+        propRoot.add(leaf);
+      }
+    }
+  })();
+
+  // 倒木 + 树桩
+  (function fallenLog() {
+    var lx = -6, lz = 12, ly = heightAt(lx, lz);
+    var log = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 6.4, 9), trunkMat);
+    log.rotation.set(0, 0.7, Math.PI / 2 - 0.06);
+    log.position.set(lx, ly + 0.42, lz);
+    log.castShadow = true; log.receiveShadow = true;
+    propRoot.add(log);
+    var stump = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.7, 0.75, 9), trunkMat);
+    stump.position.set(5, heightAt(5, 26) + 0.3, 26);
+    stump.castShadow = true;
+    propRoot.add(stump);
+  })();
+  [[8, 24, 0.9], [-8, 16, 1.0], [22, -6, 0.9], [-18, -2, 0.95], [-4, 30, 0.8],
+   [14, 30, 0.85], [-24, 22, 0.9], [30, 16, 0.8], [0, -8, 1.0], [-34, -16, 0.9],
+   [14, 6, 0.85], [-10, 4, 0.9], [26, 26, 0.8], [-28, 4, 0.85], [4, -14, 0.9],
+   [-16, 30, 0.8], [32, -20, 0.85], [-36, 24, 0.8]].forEach(function (f) {
+    makeFern(f[0], f[1], f[2]);
+  });
+  makeBird(120, 62, 0.4, 0.055, 2.4);
+  makeBird(138, 68, 2.1, 0.048, 2.0);
+  makeBird(108, 56, 4.0, 0.062, 1.8);
+  makeBird(150, 74, 5.2, 0.042, 2.6);
+
+  // 山脊剖面：几座主峰 + 两级分形起伏（1D）
+  function ridgeProfile(t, so) {
+    var n1 = fbm(t * 4.2 + so, 1.7);          // 主脊
+    var n2 = fbm(t * 11.0 + so * 2.3, 4.1);   // 次级峰
+    var n3 = fbm(t * 27.0 + so * 3.7, 7.9);   // 细节
+    var p = Math.pow(n1, 1.5) * 1.55 + 0.32 * n2 + 0.13 * n3;
+    // 两端收口，避免出现齐边
+    var edge = Math.min(1, Math.min(t, 1 - t) * 7.0);
+    return Math.max(0.03, p * (0.35 + 0.65 * edge));
+  }
+
+  // 远山：真正的高度场地形条带（有体量、有纵深），不是堆锥体
+  // 空气透视：远山不用场景雾（会被橙色地平线染色），自己带淡紫灰的层次色
+  // 逐时段重算顶点色：mountain 山脚永远贴合当前地平线色，正午不发紫、夜里不发亮
+  var RANGES = [];                                  // {geo, layer, n, ka, kb, kc}
+  var RANGE_DEPTH = [0.30, 0.40, 0.52];             // 近层更暗，远层更融化在雾里
+  var SLATE_C = C('#3b3450');                       // 山体本色（偏冷紫灰）
+  var RANGE_MAT = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, vertexColors: true });
+
+  function tintRanges(p, d) {
+    var hz = p.hor.clone().lerp(p.mid, 0.18);       // 山脚要融进的地平线色
+    var wLow = 1 - THREE.MathUtils.smoothstep(d.y, 0.05, 0.42);   // 太阳越低越暖
+    var warmK = wLow * (1 - p.night * 0.80) * (0.06 + 0.10 * wLow);
+    // 逆光时段山体是剪影：太阳越低越压暗，否则会直接糊进晚霞里看不见
+    var darkK = 0.52 + 0.48 * Math.min(1, Math.max(0, d.y * 2.6));
+    darkK *= 1 - 0.55 * p.night;
+    for (var i = 0; i < RANGES.length; i++) {
+      var R = RANGES[i];
+      var body = hz.clone().lerp(SLATE_C, 0.62).multiplyScalar(RANGE_DEPTH[R.layer] * darkK);
+      body.lerp(p.sun, warmK);
+      var lo = body.clone().multiplyScalar(0.82), hi = body.clone().multiplyScalar(1.20);
+      var c = R.geo.attributes.color.array, ka = R.ka, kb = R.kb, kc = R.kc;
+      for (var v = 0; v < R.n; v++) {
+        var o = v * 3, a = ka[v], b1 = kb[v], c1 = kc[v];
+        c[o] = hz.r * a + lo.r * b1 + hi.r * c1;
+        c[o + 1] = hz.g * a + lo.g * b1 + hi.g * c1;
+        c[o + 2] = hz.b * a + lo.b * b1 + hi.b * c1;
+      }
+      R.geo.attributes.color.needsUpdate = true;
+    }
+  }
+
+  function makeRange(cfg) {
+    var segX = cfg.segX || 150, segZ = cfg.segZ || 14;
+    var pos = [], idx = [], col = [];
+    var nv = (segX + 1) * (segZ + 1);
+    var ka = new Float32Array(nv), kb = new Float32Array(nv), kc = new Float32Array(nv);
+    var maxH = cfg.h * 1.85;
+    for (var j = 0; j <= segZ; j++) {
+      var zz = (j / segZ - 0.5) * 2;
+      var fall = Math.pow(Math.max(0, 1 - Math.abs(zz)), 0.62);   // 前后渐低，形成山体斜面
+      for (var i = 0; i <= segX; i++) {
+        var u = i / segX;
+        var x = (u - 0.5) * cfg.w;
+        var hh = cfg.h * ridgeProfile(u, cfg.seed) * fall;
+        hh *= 0.78 + 0.46 * fbm(x * cfg.freq + cfg.seed, zz * 2.2 + 3.0);
+        hh += cfg.h * 0.05 * fbm(x * cfg.freq * 3.4, zz * 4.6 + 7.0);
+        pos.push(x, hh, zz * cfg.d);
+        var t = Math.min(1, Math.max(0, hh / maxH));
+        var fade = THREE.MathUtils.smoothstep(t, 0.0, 0.15);       // 只有山脚一线融进雾，山脊保持剪影
+        var vi = j * (segX + 1) + i;
+        ka[vi] = 1 - fade; kb[vi] = fade * (1 - t); kc[vi] = fade * t;
+        col.push(0, 0, 0);                                         // 颜色由 tintRanges() 填写
+      }
+    }
+    for (var j2 = 0; j2 < segZ; j2++) {
+      for (var i2 = 0; i2 < segX; i2++) {
+        var a = j2 * (segX + 1) + i2, b = a + segX + 1;
+        idx.push(a, b, a + 1, b, b + 1, a + 1);
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    var m = new THREE.Mesh(g, RANGE_MAT);
+    m.position.set(cfg.x, -cfg.h * 0.09, cfg.z);
+    m.rotation.y = cfg.rot || 0;
+    m.frustumCulled = false;
+    scene.add(m);
+    RANGES.push({ geo: g, layer: cfg.layer || 0, n: nv, ka: ka, kb: kb, kc: kc });
+  }
+
+  // 远 → 中 → 近三层，越远越淡（靠雾+更浅的山色）
+  // 离散岛屿：海面要留白，不能让山连成一道墙
+  makeRange({ x: -2200, z: -3400, w: 780, h: 165, d: 180, seed: 4.4, freq: 0.02, rot: 0.16, layer: 0 });
+  makeRange({ x: -1420, z: -2700, w: 460, h: 96, d: 130, seed: 17.6, freq: 0.034, rot: 0.22, layer: 0 });
+  makeRange({ x: -420, z: -4000, w: 620, h: 120, d: 150, seed: 9.2, freq: 0.03, rot: -0.1, layer: 1 });
+  makeRange({ x: 1080, z: -3050, w: 700, h: 135, d: 160, seed: 6.1, freq: 0.026, rot: -0.18, layer: 0 });
+  makeRange({ x: 2380, z: -4200, w: 1050, h: 210, d: 220, seed: 13.7, freq: 0.016, rot: -0.3, layer: 2 });
+  makeRange({ x: -3700, z: -4500, w: 1100, h: 220, d: 240, seed: 21.3, freq: 0.014, rot: 0.3, layer: 2 });
+  makeRange({ x: 3350, z: -4750, w: 1300, h: 240, d: 260, seed: 33.1, freq: 0.012, rot: -0.2, layer: 2 });
 
   /* ---------------- 粒子：水花 / 萤火 ---------------- */
   var fireflies = (function () {
@@ -1134,12 +1546,14 @@
     WATERU.uSkyHor.value.copy(p.hor);
     WATERU.uDeep.value.copy(p.deep);
     WATERU.uShallow.value.copy(p.shallow);
-    WATERU.uFog.value.copy(p.hor).multiplyScalar(0.94);
+    WATERU.uFog.value.copy(p.hor);
     WATERU.uNight.value = p.night;
 
     scene.fog.color.copy(p.hor).multiplyScalar(0.96);
-    scene.fog.near = 340;
-    scene.fog.far = 2600;
+    scene.fog.near = 480;
+    scene.fog.far = 4300;
+
+    tintRanges(p, d);
 
     sunLight.position.copy(d).multiplyScalar(280);
     sunLight.target.position.set(0, 4, 0);
@@ -1288,6 +1702,36 @@
     }
   });
 
+  /* ---------------- 细节动画 ---------------- */
+  function updateDetails(t, night) {
+    if (FIRE) {
+      var lit = night > 0.12 || HOUR > 17.6 || HOUR < 6.4;
+      var fl = lit ? 1.0 : 0.16;
+      FIRE.light.intensity = fl * (1.9 + 0.35 * Math.sin(t * 11.0) + 0.2 * Math.sin(t * 23.0 + 1.3));
+      FIRE.flame.material.opacity = fl * (0.75 + 0.2 * Math.sin(t * 9.0));
+      FIRE.flame.scale.set(1.4 + 0.12 * Math.sin(t * 12.0), 2.0 + 0.28 * Math.sin(t * 8.4), 1);
+      for (var i = 0; i < SMOKE.length; i++) {
+        var s = SMOKE[i];
+        s.t += 0.0022;
+        if (s.t > 1) s.t -= 1;
+        s.s.position.y = 1.3 + s.t * 5.5;
+        s.s.position.x = Math.sin(s.t * 6.0 + i) * 0.5;
+        s.s.material.opacity = 0.16 * Math.sin(s.t * Math.PI) * (0.35 + night * 0.65);
+        s.s.scale.setScalar(1.0 + s.t * 2.6);
+      }
+    }
+    for (var b = 0; b < BIRDS.length; b++) {
+      var bd = BIRDS[b];
+      bd.a += bd.sp * 0.01;
+      bd.g.position.set(Math.cos(bd.a) * bd.r, bd.y + Math.sin(t * 0.6 + b) * 1.4, Math.sin(bd.a) * bd.r);
+      bd.g.rotation.y = -bd.a + Math.PI / 2;
+      var flap = Math.sin(t * 4.2 + b * 1.7) * 0.35;
+      bd.g.children[0].rotation.z = 0.28 + flap;
+      bd.g.children[1].rotation.z = -0.28 - flap;
+      bd.g.visible = night < 0.55;
+    }
+  }
+
   /* ---------------- 导出 GLB ---------------- */
   function exportGLB() {
     try {
@@ -1341,6 +1785,7 @@
       fireflies.position.y = Math.sin(T0 * 0.6) * 0.3;
     }
 
+    updateDetails(T0, PAL_CUR.night);
     renderReflection();
     if (post.ok) {
       renderer.setRenderTarget(post.rt);

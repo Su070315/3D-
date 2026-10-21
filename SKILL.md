@@ -26,7 +26,7 @@ description_en: "Generate a 3D model openable in the browser by double-clicking,
 |---|---|---|
 | 室内住宅 / 别墅（楼层、家具、俯视看室内） | templates/manor_app.js | references/design-guide.md |
 | 浮空岛 / 城堡（内部房间、可点开门、瀑布池塘、视角导览） | templates/sky_island_v10_app.js | references/design-guide.md 第 9 节 |
-| **海岛 / 海滩 / 黄昏海面 / 写实自然场景** | **templates/sea_island_app.js** | **references/realism-guide.md** |
+| **自然场景 / 岛 / 海岸 / 写实氛围**（原创：北境阴天孤岛） | **templates/nordic_isle_app.js** | **references/realism-guide.md** |
 | 用户要"真实、有氛围、像实拍短剧画面" | 任一骨架 + 写实四件套 | references/realism-guide.md |
 
 **写实四件套**（缺一不可，详见 realism-guide.md）：天空球 shader、水面平面反射 + 光带、ACES 后处理（bloom/暗角/颗粒）、颜色统一转线性。
@@ -48,15 +48,17 @@ description_en: "Generate a 3D model openable in the browser by double-clicking,
 - 水系统：多股水帘(不同 speed 的 foamTex 滚动)+翻口白沫+底部水花粒子+雾气+池塘涟漪(RingGeometry 扩散)，统一 WATER_TICK(t) 在渲染循环里驱动
 - 在成品 HTML 上迭代：node scripts/update_html.js <已有.html> <新app.js> 只替换最后的 app 脚本块，幂等
 
-## 写实场景骨架（sea_island_app.js，海风小岛）
+## 写实场景骨架（nordic_isle_app.js，北境孤岛）
 
 开箱可用的完整管线，改元素不改结构：
 
-- **天空 shader**（球体 + 垂直三段渐变 + 太阳散射 + 地平线逆光辉光 + 云带 + 星空）
-- **水面**（平面反射 RT + 多向波法线 + 菲涅尔 + 日/月光带 + 高度图算水深 + 窄带白沫）
-- **地形**（高度场 + 顶点色分段：水下沙→湿沙→干沙→草→岩）
-- **植被**（弯曲分段的棕榈干 + 羽状叶 alphaTest + 枯叶裙 + InstancedMesh 草）
-- **后处理**（半分辨率 bloom + ACES + 暖高光/冷阴影分级 + 暗角 + 颗粒 + 边缘色差）
+- **天空 shader**（球体 + 垂直三段渐变 + 弱太阳散射 + 阴天层云 + 星空；太阳辉光由调色板 glow 键控制，阴天压到 0.3~0.4）
+- **水面**（平面反射 RT + 多向波法线 + 菲涅尔 + 弱日光带 + 高度图算水深 + 窄带白沫）
+- **地形**（高度场 + 顶点色分段：水下→湿砾→干砾→苔原草→玄武岩）
+- **植被**（冷杉：锥层顶点径向抖动 + 8~11 层堆叠；蕨类复用叶片几何；InstancedMesh 草）
+- **海雾**（大尺寸软 sprite 点云贴水面，0.15 透明度缓慢漂移）
+- **后处理**（半分辨率 bloom + ACES + 冷调分级 + 暗角 + 颗粒 + 边缘色差）
+- **控件**（原创弧形日轨：地平线上半圆刻度 + 可拖拽光点，位置即时刻；顶部只用纯文字导航，不做胶囊面板）
 - **时间系统**（PAL 关键帧色板 0~24h 连续插值：日落/正午/月夜自动切光、雾、曝光、窗灯）
 - **UI**（时间滑块 + 4 个时段按钮 + 5 个机位 + 自动旋转 + 导出 GLB）
 - 调试口：`window.__isle = {scene, camera, controls, applyTime, tweenCam}`
